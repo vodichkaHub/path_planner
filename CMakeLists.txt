@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   message_filters
+  ompl
 )
 
 ## System dependencies are found with CMake's conventions
@@ -157,6 +158,11 @@ include_directories(
 add_executable(setup_initial src/start_goal_listener.cpp)
 target_link_libraries(setup_initial ${catkin_LIBRARIES})
 add_dependencies(setup_initial ${catkin_EXPORTED_TARGETS})
+
+
+add_executable(problem_solver src/problem_solver.cpp)
+target_link_libraries(problem_solver ${catkin_LIBRARIES})
+add_dependencies(problem_solver ${catkin_EXPORTED_TARGETS})
 
 
 
