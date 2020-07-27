@@ -8,16 +8,17 @@ project(path_planner)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  ompl
   roscpp
   std_msgs
   geometry_msgs
-  message_filters
-  ompl
+)
+
+find_package(
+    ompl
 )
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+ find_package(Boost REQUIRED COMPONENTS system)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -106,10 +107,20 @@ find_package(catkin REQUIRED COMPONENTS
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
+
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES path_planner
-#  CATKIN_DEPENDS ompl roscpp std_msgs
+  INCLUDE_DIRS
+  	include
+  	${catkin_INCLUDE_DIRS}
+#  	${system_lib_INCLUDE_DIRS}
+  LIBRARIES path_planner
+  CATKIN_DEPENDS
+	roscpp
+	std_msgs
+#	costmap_2d
+    geometry_msgs
+#   nav_core
+    nav_msgs
 #  DEPENDS system_lib
 )
 
@@ -120,14 +131,14 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+	include
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
+#add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/path_planner.cpp
-# )
+#)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -150,19 +161,20 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
+#target_link_libraries(${PROJECT_NAME}_node
+#	${catkin_LIBRARIES}
+#	${ompl_LIBRARIES}
+#)
 
 
-add_executable(setup_initial src/start_goal_listener.cpp)
-target_link_libraries(setup_initial ${catkin_LIBRARIES})
-add_dependencies(setup_initial ${catkin_EXPORTED_TARGETS})
+add_executable(${PROJECT_NAME}_setup_node src/setup_node.cpp)
+target_link_libraries(${PROJECT_NAME}_setup_node ${catkin_LIBRARIES})
+add_dependencies(${PROJECT_NAME}_setup_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
-add_executable(problem_solver src/problem_solver.cpp)
-target_link_libraries(problem_solver ${catkin_LIBRARIES})
-add_dependencies(problem_solver ${catkin_EXPORTED_TARGETS})
+add_executable(${PROJECT_NAME}_solver_node src/solver_node.cpp)
+target_link_libraries(${PROJECT_NAME}_solver_node ${catkin_LIBRARIES} ${ompl_LIBRARIES})
+add_dependencies(${PROJECT_NAME}_solver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${ompl_EXPORTED_TARGETS})
 
 
 
