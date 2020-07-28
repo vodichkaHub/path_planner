@@ -10,7 +10,9 @@ project(path_planner)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
+  nav_msgs
   geometry_msgs
+#  costmap_2d
 )
 
 find_package(
@@ -111,7 +113,7 @@ find_package(
 catkin_package(
   INCLUDE_DIRS
   	include
-  	${catkin_INCLUDE_DIRS}
+#  	${catkin_INCLUDE_DIRS}
 #  	${system_lib_INCLUDE_DIRS}
   LIBRARIES path_planner
   CATKIN_DEPENDS
@@ -132,23 +134,15 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
 	include
-  ${catkin_INCLUDE_DIRS}
+#	${OMPL_INCLUDE_DIRS}
+  	${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-#add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/path_planner.cpp
-#)
-
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/path_planner_node.cpp)
+add_library(${PROJECT_NAME}
+#   src/setup_node.cpp
+   src/solver_node.cpp
+)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -161,10 +155,10 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-#target_link_libraries(${PROJECT_NAME}_node
-#	${catkin_LIBRARIES}
-#	${ompl_LIBRARIES}
-#)
+target_link_libraries(${PROJECT_NAME}
+	${catkin_LIBRARIES}
+	${OMPL_LIBRARIES}
+)
 
 
 add_executable(${PROJECT_NAME}_setup_node src/setup_node.cpp)
@@ -173,8 +167,8 @@ add_dependencies(${PROJECT_NAME}_setup_node ${${PROJECT_NAME}_EXPORTED_TARGETS} 
 
 
 add_executable(${PROJECT_NAME}_solver_node src/solver_node.cpp)
-target_link_libraries(${PROJECT_NAME}_solver_node ${catkin_LIBRARIES} ${ompl_LIBRARIES})
-add_dependencies(${PROJECT_NAME}_solver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${ompl_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME}_solver_node ${catkin_LIBRARIES} ${OMPL_LIBRARIES})
+add_dependencies(${PROJECT_NAME}_solver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${OMPL_EXPORTED_TARGETS})
 
 
 
