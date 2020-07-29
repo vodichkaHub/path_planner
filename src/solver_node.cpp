@@ -18,6 +18,9 @@
 #include "nav_msgs/OccupancyGrid.h"
 #include "nav_msgs/Path.h"
 #include "geometry_msgs/Pose.h"
+#include <string>
+
+#include <vector>
 
 
 enum plannerType
@@ -33,18 +36,16 @@ namespace ps
 	{
 
 	public:
-		ProblemSolver(const plannerType type)
+		ProblemSolver(const plannerType type, const ros::Publisher *pub)
 		{
-			this->planner = type;
+			publisher = pub;
+			planner = type;
 		}
 
 		void plan(const double run_time)
 		{
-			ROS_INFO("plan running");
-			ROS_INFO("%d %d %d", this->map_setteled, this->start_pose_setteled, this->goal_pose_setteled);
 			 if (this->map_setteled && this->start_pose_setteled && this->goal_pose_setteled)
 			 {
-				 ROS_INFO("setteled");
 				 auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
 				 space->setBounds(0.0, (double)this->og_map.info.width);
 
@@ -67,24 +68,59 @@ namespace ps
 
 				 planner->setProblemDefinition(pdef);
 
-				 auto ss(std::make_shared<ompl::geometric::SimpleSetup>(si));
-
-//				 si->
-
 				 auto t_cond(ompl::base::timedPlannerTerminationCondition(run_time));
 				 ompl::base::PlannerStatus solved = planner->solve(t_cond);
 
-				 ROS_INFO("plan started %i", solved);
-				 if (solved)
+
+				 if (pdef->hasSolution())
 				 {
-					 ROS_INFO("SOLVED %f", pdef->getSolutionPath()->length());
+					 this->problem_solved = true;
+					 setSolutionPath(pdef);
 				 }
 			 }
 		 }
 
+		void publish(const std::vector<ompl::base::RealVectorStateSpace::StateType *> path)
+		{
+			if (this->problem_solved)
+			{
+				auto path_msg(std::make_shared<nav_msgs::Path>());
+				auto pose(std::make_shared<geometry_msgs::PoseStamped>());
+
+				for (int i = 0; i < path.size(); ++i) {
+					pose->header.stamp = ros::Time();
+					pose->header.frame_id = "map";
+					pose->pose.position.x = path.at(i)->values[0];
+					pose->pose.position.y = path.at(i)->values[1];
+
+					path_msg->header.stamp = ros::Time();
+					path_msg->header.frame_id = "map";
+					path_msg->poses.push_back(*pose);
+				}
+				publisher->publish(*path_msg);
+			}
+		}
+
+		void setSolutionPath(std::shared_ptr<ompl::base::ProblemDefinition> pdef)
+		{
+			 ompl::geometric::PathGeometric path_geometric(dynamic_cast<const ompl::geometric::PathGeometric &>(*pdef->getSolutionPath()));
+			 const std::vector<ompl::base::State*> &states = path_geometric.getStates();
+			 ompl::base::State *state;
+
+			 std::vector<ompl::base::RealVectorStateSpace::StateType *> result;
+
+			for (int i = 0; i < states.size(); ++i) {
+				state = states[i]->as<ompl::base::State>();
+				result.push_back(state->as<ompl::base::RealVectorStateSpace::StateType>());
+			}
+//
+			this->publish(result);
+		}
+
 		void poseSetupCallback(const geometry_msgs::Pose&);
 		void mapSetupCallback(const nav_msgs::OccupancyGrid&);
 
+		bool problem_solved = false;
 	private:
 
 		nav_msgs::OccupancyGrid og_map;
@@ -97,6 +133,8 @@ namespace ps
 		bool goal_pose_setteled = false;
 
 		plannerType planner = RRT;
+
+		const ros::Publisher *publisher;
 	};
 
 	//class ValidityChecker : public ompl::base::StateValidityChecker
@@ -132,7 +170,6 @@ namespace ps
 				this->goal_pose_setteled = true;
 			}
 		}
-		ROS_INFO("%d %d %d", this->map_setteled, this->start_pose_setteled, this->goal_pose_setteled);
 	}
 
 	void ProblemSolver::mapSetupCallback(const nav_msgs::OccupancyGrid& map)
@@ -142,7 +179,6 @@ namespace ps
 			this->og_map = map;
 			this->map_setteled = true;
 		}
-		ROS_INFO("%d %d %d", this->map_setteled, this->start_pose_setteled, this->goal_pose_setteled);
 	}
 } // namespace ps
 
@@ -166,14 +202,14 @@ void pickUpPlannerType(int input_arg, plannerType *planner_type)
 
 int main(int argc, char **argv) {
 
-	ros::init(argc,  argv, "path_planner_solver_node");
-	ros::NodeHandle nh;
-
 	if (!argc)
 	{
 		ROS_ERROR("Invaild path planner type argument!");
 		ros::shutdown();
 	}
+	ros::init(argc,  argv, "path_planner_solver_node");
+	ros::NodeHandle nh;
+
 
 	plannerType planner_type;
 
@@ -181,20 +217,23 @@ int main(int argc, char **argv) {
 	int input_arg = stoi(arg);
 	pickUpPlannerType(input_arg, &planner_type);
 
-	ps::ProblemSolver solver(planner_type);
+	ros::Publisher path_pub = nh.advertise<nav_msgs::Path>("/solver_path", 1000);
+
+	ps::ProblemSolver solver(planner_type, &path_pub);
 
 	ros::Subscriber initial_pose_sub = nh.subscribe("/initial_pose", 2, &ps::ProblemSolver::poseSetupCallback, &solver);
 	ros::Subscriber initial_map_sub = nh.subscribe("/initial_map", 1, &ps::ProblemSolver::mapSetupCallback, &solver);
 
 	ros::Rate loop_rate(10);
 
-	while (ros::ok())
+	while (ros::ok() && !solver.problem_solved)
 	{
-		solver.plan(100.0);
+		solver.plan(10000.0);
 
 		ros::spinOnce();
 		loop_rate.sleep();
 	}
+
 
 //	ros::spin();
 
