@@ -1,3 +1,17 @@
 <launch>
-	<node name="" pkg=""/>
+	<arg name="map_file" value="$(dirname)/../../costmap/map.yaml"/>
+	<arg name="planner" value="1"/>
+
+	<node name="map_server" type="map_server" pkg="map_server" args="$(arg map_file)"/>
+	<node name="rviz" type="rviz" pkg="rviz" />
+	<node
+		name="path_planner_solver_node"
+		type="path_planner_solver_node"
+		pkg="path_planner"
+		args="$(arg planner)"
+		output="log">
+		
+	<rosparam command="load" file="$(find path_planner)/params/main.yaml" />
+	</node>
+	<node name="static_tf0" pkg="tf" type="static_transform_publisher" args="2 0 0 0 0 0 /map /base_link 100"/>
 </launch>

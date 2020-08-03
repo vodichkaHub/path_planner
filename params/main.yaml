@@ -1,0 +1,5 @@
+/path_planner_solver_node/costmap/width: 800
+/path_planner_solver_node/costmap/height: 800
+/path_planner_solver_node/costmap/global_frame: "map"
+/path_planner_solver_node/costmap/robot_base_frame: "base_link"
+

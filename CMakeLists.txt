@@ -12,11 +12,14 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   nav_msgs
   geometry_msgs
-#  costmap_2d
 )
 
 find_package(
     ompl
+)
+
+find_package(
+	costmap_2d
 )
 
 
@@ -56,8 +59,6 @@ find_package(
 ## Generate messages in the 'msg' folder
 # add_message_files(
 #   FILES
-#   Message1.msg
-#   Message2.msg
 # )
 
 ## Generate services in the 'srv' folder
@@ -120,7 +121,7 @@ catkin_package(
   CATKIN_DEPENDS
 	roscpp
 	std_msgs
-#	costmap_2d
+	costmap_2d
     geometry_msgs
 #   nav_core
     nav_msgs
@@ -137,6 +138,7 @@ include_directories(
 	include
 #	${OMPL_INCLUDE_DIRS}
   	${catkin_INCLUDE_DIRS}
+  	${costmap_2d_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -159,17 +161,12 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
 	${catkin_LIBRARIES}
 	${OMPL_LIBRARIES}
+	${costmap_2d_LIBRARIES}
 )
 
-
-add_executable(${PROJECT_NAME}_setup_node src/setup_node.cpp)
-target_link_libraries(${PROJECT_NAME}_setup_node ${catkin_LIBRARIES})
-add_dependencies(${PROJECT_NAME}_setup_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-
 add_executable(${PROJECT_NAME}_solver_node src/solver_node.cpp)
-target_link_libraries(${PROJECT_NAME}_solver_node ${catkin_LIBRARIES} ${OMPL_LIBRARIES})
-add_dependencies(${PROJECT_NAME}_solver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${OMPL_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME}_solver_node ${catkin_LIBRARIES} ${OMPL_LIBRARIES} ${costmap_2d_LIBRARIES})
+add_dependencies(${PROJECT_NAME}_solver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
 

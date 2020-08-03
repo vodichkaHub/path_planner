@@ -1,27 +1,39 @@
-#include "ros/ros.h"
+#include <costmap_2d/costmap_2d_ros.h>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 
-#include "ompl/base/ScopedState.h"
-#include "ompl/base/StateSpace.h"
-#include "ompl/base/spaces/RealVectorStateSpace.h"
-#include "ompl/base/spaces/RealVectorBounds.h"
-#include "ompl/base/SpaceInformation.h"
-#include "ompl/base/StateValidityChecker.h"
-#include <ompl/base/ProblemDefinition.h>
+#include <nav_msgs/MapMetaData.h>
+#include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/Path.h>
 
-#include "ompl/base/PlannerTerminationCondition.h"
+#include <ompl-1.5/ompl/base/PlannerStatus.h>
+#include <ompl-1.5/ompl/base/PlannerTerminationCondition.h>
+#include <ompl-1.5/ompl/base/ProblemDefinition.h>
+#include <ompl-1.5/ompl/base/spaces/RealVectorStateSpace.h>
+#include <ompl-1.5/ompl/base/ScopedState.h>
+#include <ompl-1.5/ompl/base/SpaceInformation.h>
+#include <ompl-1.5/ompl/base/State.h>
+#include <ompl-1.5/ompl/base/StateValidityChecker.h>
+#include <ompl-1.5/ompl/geometric/planners/rrt/RRT.h>
+#include <ompl-1.5/ompl/geometric/PathGeometric.h>
 
-#include "ompl/geometric/planners/rrt/RRT.h"
-#include "ompl/geometric/planners/prm/PRM.h"
-#include "ompl/geometric/planners/rrt/RRTConnect.h"
-#include "ompl/geometric/SimpleSetup.h"
+#include <ros/duration.h>
+#include <ros/init.h>
+#include <ros/node_handle.h>
+#include <ros/publisher.h>
+#include <ros/rate.h>
+#include <ros/subscriber.h>
+#include <ros/time.h>
 
-#include "nav_msgs/OccupancyGrid.h"
-#include "nav_msgs/Path.h"
-#include "geometry_msgs/Pose.h"
+#include <tf/transform_datatypes.h>
+#include <tf/transform_listener.h>
+
+#include <cmath>
+#include <memory>
 #include <string>
-
 #include <vector>
-
 
 enum plannerType
 {
@@ -32,6 +44,38 @@ enum plannerType
 
 namespace ps
 {
+	class ValidityChecker : public ompl::base::StateValidityChecker
+	{
+
+	public:
+		 ValidityChecker(const ompl::base::SpaceInformationPtr& si) :
+			 ompl::base::StateValidityChecker(si) {}
+
+		 bool isValid(const ompl::base::State* state) const override
+		 {
+			 double x = state->as<ompl::base::RealVectorStateSpace::StateType>()->values[0];
+			 double y = state->as<ompl::base::RealVectorStateSpace::StateType>()->values[1];
+
+			 int mp = 1;
+			 int resolution = 1/mp;
+//			 if (!ps::costmap)
+//			 {
+			 tf::TransformListener tf(ros::Duration(1));
+//			 auto costmap(std::make_shared<costmap_2d::Costmap2DROS>("costmap", *tf.getTF2BufferPtr()));
+//			 }
+			 auto map(std::make_shared<costmap_2d::Costmap2D>(800*mp, 800*mp, resolution, 0, 0));
+//			 auto map = costmap->getCostmap();
+//			 auto map = costmap->getLayeredCostmap()->getCostmap();
+
+			 int cell_cost = map->getCost(floor(x)*resolution, floor(y)*resolution);
+
+//			 ROS_INFO("bds %i", this->si_->satisfiesBounds(state));
+//			 ROS_INFO("cost %f : %f ; %i", map->getIndex(x, y), map->getOriginX(), map->getOriginY());
+//			 ROS_INFO("bounds  %f, %f, %i", x, y, cell_cost);
+			 return cell_cost == costmap_2d::FREE_SPACE;
+		 }
+	};
+
 	class ProblemSolver
 	{
 
@@ -44,12 +88,14 @@ namespace ps
 
 		void plan(const double run_time)
 		{
-			 if (this->map_setteled && this->start_pose_setteled && this->goal_pose_setteled)
+			 if (this->start_pose_setteled && this->goal_pose_setteled && this->og_map_setteled)
 			 {
 				 auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
-				 space->setBounds(0.0, (double)this->og_map.info.width);
+				 space->setBounds(0.0, (double)this->og_map->info.width);
 
 				 auto si(std::make_shared<ompl::base::SpaceInformation>(space));
+
+				 si->setStateValidityChecker(ompl::base::StateValidityCheckerPtr(new ps::ValidityChecker(si)));
 
 				 si->setup();
 
@@ -74,8 +120,10 @@ namespace ps
 
 				 if (pdef->hasSolution())
 				 {
+					 ROS_INFO("solved");
 					 this->problem_solved = true;
 					 setSolutionPath(pdef);
+					 resetPoseSetteld();
 				 }
 			 }
 		 }
@@ -93,10 +141,10 @@ namespace ps
 					pose->pose.position.x = path.at(i)->values[0];
 					pose->pose.position.y = path.at(i)->values[1];
 
-					path_msg->header.stamp = ros::Time();
-					path_msg->header.frame_id = "map";
 					path_msg->poses.push_back(*pose);
 				}
+				path_msg->header.stamp = ros::Time();
+				path_msg->header.frame_id = "map";
 				publisher->publish(*path_msg);
 			}
 		}
@@ -117,67 +165,60 @@ namespace ps
 			this->publish(result);
 		}
 
-		void poseSetupCallback(const geometry_msgs::Pose&);
-		void mapSetupCallback(const nav_msgs::OccupancyGrid&);
+		void startPoseSetupCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr&);
+		void goalPoseSetupCallback(const geometry_msgs::PoseStampedConstPtr&);
+		void mapSetupCallback(const nav_msgs::OccupancyGridConstPtr&);
 
 		bool problem_solved = false;
+		bool og_map_setteled = false;
+		bool start_pose_setteled = false;
+		bool goal_pose_setteled = false;
 	private:
 
-		nav_msgs::OccupancyGrid og_map;
-		bool map_setteled = false;
+		void resetPoseSetteld ()
+		{
+			this->start_pose_setteled = false;
+			this->goal_pose_setteled = false;
+		}
+		nav_msgs::OccupancyGridConstPtr og_map;
 
 		geometry_msgs::Pose start_pose;
-		bool start_pose_setteled = false;
 
 		geometry_msgs::Pose goal_pose;
-		bool goal_pose_setteled = false;
 
 		plannerType planner = RRT;
 
 		const ros::Publisher *publisher;
 	};
 
-	//class ValidityChecker : public ompl::base::StateValidityChecker
-	//{
-	//
-	//public:
-	//     ValidityChecker(const ompl::base::SpaceInformationPtr& si) :
-	//         ompl::base::StateValidityChecker(si) {}
-	//
-	//     bool isValid(const ompl::base::State* state) const override
-	//     {
-	//    	 return this->clearance(state) > 0.0;
-	//     }
-
-	//     double clearance(const ompl::base::State* state) const override
-	//     {
-	//
-	//     }
-	//};
-
-	void ProblemSolver::poseSetupCallback(const geometry_msgs::Pose& pose)
+	void ProblemSolver::startPoseSetupCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& start)
 	{
 		if (!this->start_pose_setteled)
 		{
-			this->start_pose = pose;
+			this->start_pose = start->pose.pose;
 			this->start_pose_setteled = true;
-		}
-		else
-		{
-			if (!this->goal_pose_setteled)
-			{
-				this->goal_pose = pose;
-				this->goal_pose_setteled = true;
-			}
+			ROS_INFO("start set");
 		}
 	}
 
-	void ProblemSolver::mapSetupCallback(const nav_msgs::OccupancyGrid& map)
+	void ProblemSolver::goalPoseSetupCallback(const geometry_msgs::PoseStampedConstPtr& goal)
 	{
-		if(!this->map_setteled)
+		if (!this->goal_pose_setteled)
+		{
+			this->goal_pose = goal->pose;
+			this->goal_pose_setteled = true;
+			this->problem_solved = false;
+			ROS_INFO("goal set");
+		}
+	}
+
+	void ProblemSolver::mapSetupCallback(const nav_msgs::OccupancyGridConstPtr& map)
+	{
+		if (!this->og_map_setteled)
 		{
 			this->og_map = map;
-			this->map_setteled = true;
+			this->og_map_setteled = true;
+			ROS_INFO("map set");
 		}
 	}
 } // namespace ps
@@ -215,20 +256,25 @@ int main(int argc, char **argv) {
 
 	std::string arg = argv[1];
 	int input_arg = stoi(arg);
+
 	pickUpPlannerType(input_arg, &planner_type);
 
 	ros::Publisher path_pub = nh.advertise<nav_msgs::Path>("/solver_path", 1000);
 
 	ps::ProblemSolver solver(planner_type, &path_pub);
 
-	ros::Subscriber initial_pose_sub = nh.subscribe("/initial_pose", 2, &ps::ProblemSolver::poseSetupCallback, &solver);
-	ros::Subscriber initial_map_sub = nh.subscribe("/initial_map", 1, &ps::ProblemSolver::mapSetupCallback, &solver);
+	ros::Subscriber initial_pose_sub = nh.subscribe("/map", 2, &ps::ProblemSolver::mapSetupCallback, &solver);
+	ros::Subscriber start_sub = nh.subscribe("/initialpose", 1, &ps::ProblemSolver::startPoseSetupCallback, &solver);
+	ros::Subscriber goal_sub = nh.subscribe("/move_base_simple/goal", 1, &ps::ProblemSolver::goalPoseSetupCallback, &solver);
 
 	ros::Rate loop_rate(10);
 
-	while (ros::ok() && !solver.problem_solved)
+	while (ros::ok())
 	{
-		solver.plan(10000.0);
+		if (solver.goal_pose_setteled && solver.start_pose_setteled && !solver.problem_solved)
+		{
+			solver.plan(100.0);
+		}
 
 		ros::spinOnce();
 		loop_rate.sleep();
