@@ -1,6 +1,6 @@
 <launch>
 	<arg name="map_file" value="$(dirname)/../../costmap/map.yaml"/>
-	<arg name="planner" value="1"/>
+	<arg name="planner"/>
 
 	<node name="map_server" type="map_server" pkg="map_server" args="$(arg map_file)"/>
 	<node name="rviz" type="rviz" pkg="rviz" />

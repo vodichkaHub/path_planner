@@ -34,6 +34,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <chrono>
 
 enum plannerType
 {
@@ -58,14 +59,24 @@ namespace ps
 
 			 int mp = 1;
 			 int resolution = 1/mp;
-//			 if (!ps::costmap)
-//			 {
 			 tf::TransformListener tf(ros::Duration(1));
-//			 auto costmap(std::make_shared<costmap_2d::Costmap2DROS>("costmap", *tf.getTF2BufferPtr()));
-//			 }
-			 auto map(std::make_shared<costmap_2d::Costmap2D>(800*mp, 800*mp, resolution, 0, 0));
-//			 auto map = costmap->getCostmap();
-//			 auto map = costmap->getLayeredCostmap()->getCostmap();
+			 auto costmap(std::make_shared<costmap_2d::Costmap2DROS>("costmap", *tf.getTF2BufferPtr()));
+//			 auto map(std::make_shared<costmap_2d::Costmap2D>(800*mp, 800*mp, resolution, 0, 0));
+			 auto map = costmap->getCostmap();
+//			 map->saveMap("/home/vadimich/study_local/catkin_ws/costmap/saved.pgm");
+//
+//			 std::ofstream f;
+//			 f.open("/home/vadimich/study_local/catkin_ws/costmap/write.txt");
+//			 f << map->getCharMap();
+//			 f.close();
+
+//			 ROS_INFO("origin x: %f", map->getOriginX());
+//			 ROS_INFO("origin y: %f", map->getOriginY());
+//			 ROS_INFO("resl: %f", map->getResolution());
+//			 ROS_INFO("cs x: %f", map->getSizeInCellsX());
+//			 ROS_INFO("cs y: %f", map->getSizeInCellsY());
+//			 ROS_INFO("ms x: %f", map->getSizeInMetersX());
+//			 ROS_INFO("ms y: %f", map->getSizeInMetersY());
 
 			 int cell_cost = map->getCost(floor(x)*resolution, floor(y)*resolution);
 
@@ -120,6 +131,7 @@ namespace ps
 
 				 if (pdef->hasSolution())
 				 {
+
 					 ROS_INFO("solved");
 					 this->problem_solved = true;
 					 setSolutionPath(pdef);
@@ -271,9 +283,12 @@ int main(int argc, char **argv) {
 
 	while (ros::ok())
 	{
-		if (solver.goal_pose_setteled && solver.start_pose_setteled && !solver.problem_solved)
+		if (!solver.problem_solved)
 		{
-			solver.plan(100.0);
+			std::clock_t t_start = std::clock();
+			solver.plan(2000.0);
+			std::clock_t t_end = std::clock();
+			ROS_INFO("Runtime: %f", (t_end - t_start)/ CLOCKS_PER_SEC);
 		}
 
 		ros::spinOnce();
