@@ -16,7 +16,9 @@
 #include <ompl-1.5/ompl/base/SpaceInformation.h>
 #include <ompl-1.5/ompl/base/State.h>
 #include <ompl-1.5/ompl/base/StateValidityChecker.h>
+#include <ompl-1.5/ompl/geometric/planners/prm/PRM.h>
 #include <ompl-1.5/ompl/geometric/planners/rrt/RRT.h>
+#include <ompl-1.5/ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ompl-1.5/ompl/geometric/PathGeometric.h>
 
 #include <ros/duration.h>
@@ -34,17 +36,16 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <chrono>
-
-enum plannerType
-{
-	RRT = 1,
-	RRTConnect = 2,
-	PRM = 3
-};
 
 namespace ps
 {
+	enum plannerType
+	{
+		RRT = 1,
+		RRTConnect = 2,
+		PRM = 3
+	};
+
 	class ValidityChecker : public ompl::base::StateValidityChecker
 	{
 
@@ -71,6 +72,7 @@ namespace ps
 		 costmap_2d::Costmap2D *map;
 	};
 
+
 	class ProblemSolver
 	{
 
@@ -78,7 +80,7 @@ namespace ps
 		ProblemSolver(const plannerType type, const ros::Publisher *pub)
 		{
 			publisher = pub;
-			planner = type;
+			planner_type = type;
 		}
 
 		void plan(const double run_time)
@@ -105,7 +107,9 @@ namespace ps
 			 auto pdef(std::make_shared<ompl::base::ProblemDefinition>(si));
 			 pdef->setStartAndGoalStates(start, goal);
 
-			 auto planner(std::make_shared<ompl::geometric::RRT>(si));
+//			 auto planner(std::make_unique<ompl::geometric::RRT>(si));
+			 auto planner(std::make_unique<ompl::geometric::RRTConnect>(si));
+//			 auto planner(std::make_unique<ompl::geometric::PRM>(si));
 
 			 planner->setProblemDefinition(pdef);
 
@@ -115,6 +119,7 @@ namespace ps
 
 			 if (pdef->hasSolution())
 			 {
+				 planner->printSettings(std::cout);
 				 this->problem_solved = true;
 				 setSolutionPath(pdef);
 				 resetPoseSetteld();
@@ -173,16 +178,20 @@ namespace ps
 			this->start_pose_setteled = false;
 			this->goal_pose_setteled = false;
 		}
+
+
+
 		nav_msgs::OccupancyGridConstPtr og_map;
 
 		geometry_msgs::Pose start_pose;
 
 		geometry_msgs::Pose goal_pose;
 
-		plannerType planner = RRT;
+		plannerType planner_type;
 
 		const ros::Publisher *publisher;
 	};
+
 
 	void ProblemSolver::startPoseSetupCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& start)
 	{
@@ -193,6 +202,8 @@ namespace ps
 			ROS_INFO("start set");
 		}
 	}
+
+
 
 	void ProblemSolver::goalPoseSetupCallback(const geometry_msgs::PoseStampedConstPtr& goal)
 	{
@@ -205,6 +216,7 @@ namespace ps
 		}
 	}
 
+
 	void ProblemSolver::mapSetupCallback(const nav_msgs::OccupancyGridConstPtr& map)
 	{
 		if (!this->og_map_setteled)
@@ -216,22 +228,23 @@ namespace ps
 	}
 } // namespace ps
 
-void pickUpPlannerType(int input_arg, plannerType *planner_type)
+void pickUpPlannerType(int input_arg, ps::plannerType *planner_type)
 {
-	switch (input_arg) {
-			case 1:
-				*planner_type = RRT;
-				break;
-			case 2:
-				*planner_type = RRTConnect;
-				break;
-			case 3:
-				*planner_type = PRM;
-				break;
-			default:
-				*planner_type = RRT;
-				break;
-		}
+	switch (input_arg)
+	{
+		case 1:
+			*planner_type = ps::RRT;
+			break;
+		case 2:
+			*planner_type = ps::RRTConnect;
+			break;
+		case 3:
+			*planner_type = ps::PRM;
+			break;
+		default:
+			*planner_type = ps::RRT;
+			break;
+	}
 }
 
 int main(int argc, char **argv) {
@@ -245,7 +258,7 @@ int main(int argc, char **argv) {
 	ros::NodeHandle nh;
 
 
-	plannerType planner_type;
+	ps::plannerType planner_type;
 
 	std::string arg = argv[1];
 	int input_arg = stoi(arg);
