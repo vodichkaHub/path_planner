@@ -107,8 +107,8 @@ namespace ps
 			 auto pdef(std::make_shared<ompl::base::ProblemDefinition>(si));
 			 pdef->setStartAndGoalStates(start, goal);
 
-//			 auto planner(std::make_unique<ompl::geometric::RRT>(si));
-			 auto planner(std::make_unique<ompl::geometric::RRTConnect>(si));
+			 auto planner(std::make_unique<ompl::geometric::RRT>(si));
+//			 auto planner(std::make_unique<ompl::geometric::RRTConnect>(si));
 //			 auto planner(std::make_unique<ompl::geometric::PRM>(si));
 
 			 planner->setProblemDefinition(pdef);
@@ -275,6 +275,7 @@ int main(int argc, char **argv) {
 
 	ros::Rate loop_rate(10);
 
+	double runtime;
 	while (ros::ok())
 	{
 		if (solver.start_pose_setteled && solver.goal_pose_setteled && solver.og_map_setteled && !solver.problem_solved)
@@ -283,16 +284,12 @@ int main(int argc, char **argv) {
 			solver.plan(200.0);
 			std::clock_t t_end = std::clock();
 
-			double runtime = ((double)t_end - (double)t_start) / (double)CLOCKS_PER_SEC;
+			runtime = ((double)t_end - (double)t_start) / (double)CLOCKS_PER_SEC;
 			ROS_INFO("Runtime: %f seconds", runtime);
 		}
 
 		ros::spinOnce();
 		loop_rate.sleep();
 	}
-
-
-//	ros::spin();
-
 	return 0;
 }
