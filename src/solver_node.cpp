@@ -49,42 +49,26 @@ namespace ps
 	{
 
 	public:
-		 ValidityChecker(const ompl::base::SpaceInformationPtr& si) :
-			 ompl::base::StateValidityChecker(si) {}
+		 ValidityChecker(const ompl::base::SpaceInformationPtr& si, std::shared_ptr<costmap_2d::Costmap2DROS> cm) :
+			 ompl::base::StateValidityChecker(si)
+		 {
+			 costmap = cm;
+			 map = costmap->getCostmap();
+		 }
 
 		 bool isValid(const ompl::base::State* state) const override
 		 {
 			 double x = state->as<ompl::base::RealVectorStateSpace::StateType>()->values[0];
 			 double y = state->as<ompl::base::RealVectorStateSpace::StateType>()->values[1];
 
-			 int mp = 1;
-			 int resolution = 1/mp;
-			 tf::TransformListener tf(ros::Duration(1));
-			 auto costmap(std::make_shared<costmap_2d::Costmap2DROS>("costmap", *tf.getTF2BufferPtr()));
-//			 auto map(std::make_shared<costmap_2d::Costmap2D>(800*mp, 800*mp, resolution, 0, 0));
-			 auto map = costmap->getCostmap();
-//			 map->saveMap("/home/vadimich/study_local/catkin_ws/costmap/saved.pgm");
-//
-//			 std::ofstream f;
-//			 f.open("/home/vadimich/study_local/catkin_ws/costmap/write.txt");
-//			 f << map->getCharMap();
-//			 f.close();
+			 int cell_cost = map->getCost(floor(x), floor(y));
 
-//			 ROS_INFO("origin x: %f", map->getOriginX());
-//			 ROS_INFO("origin y: %f", map->getOriginY());
-//			 ROS_INFO("resl: %f", map->getResolution());
-//			 ROS_INFO("cs x: %f", map->getSizeInCellsX());
-//			 ROS_INFO("cs y: %f", map->getSizeInCellsY());
-//			 ROS_INFO("ms x: %f", map->getSizeInMetersX());
-//			 ROS_INFO("ms y: %f", map->getSizeInMetersY());
-
-			 int cell_cost = map->getCost(floor(x)*resolution, floor(y)*resolution);
-
-//			 ROS_INFO("bds %i", this->si_->satisfiesBounds(state));
-//			 ROS_INFO("cost %f : %f ; %i", map->getIndex(x, y), map->getOriginX(), map->getOriginY());
-//			 ROS_INFO("bounds  %f, %f, %i", x, y, cell_cost);
 			 return cell_cost == costmap_2d::FREE_SPACE;
 		 }
+
+	private:
+		 std::shared_ptr<costmap_2d::Costmap2DROS> costmap;
+		 costmap_2d::Costmap2D *map;
 	};
 
 	class ProblemSolver
@@ -99,44 +83,41 @@ namespace ps
 
 		void plan(const double run_time)
 		{
-			 if (this->start_pose_setteled && this->goal_pose_setteled && this->og_map_setteled)
+			 auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
+			 space->setBounds(0.0, (double)this->og_map->info.width);
+
+			 auto si(std::make_shared<ompl::base::SpaceInformation>(space));
+
+			 tf::TransformListener tf(ros::Duration(1));
+			 auto costmap(std::make_shared<costmap_2d::Costmap2DROS>("costmap", *tf.getTF2BufferPtr()));
+			 si->setStateValidityChecker(ompl::base::StateValidityCheckerPtr(new ps::ValidityChecker(si, costmap)));
+
+			 si->setup();
+
+			 ompl::base::ScopedState<ompl::base::RealVectorStateSpace> start(space);
+			 start->as<ompl::base::RealVectorStateSpace::StateType>()->values[0] = this->start_pose.position.x;
+			 start->as<ompl::base::RealVectorStateSpace::StateType>()->values[1] = this->start_pose.position.y;
+
+			 ompl::base::ScopedState<ompl::base::RealVectorStateSpace> goal(space);
+			 goal->as<ompl::base::RealVectorStateSpace::StateType>()->values[0] = this->goal_pose.position.x;
+			 goal->as<ompl::base::RealVectorStateSpace::StateType>()->values[1] = this->goal_pose.position.y;
+
+			 auto pdef(std::make_shared<ompl::base::ProblemDefinition>(si));
+			 pdef->setStartAndGoalStates(start, goal);
+
+			 auto planner(std::make_shared<ompl::geometric::RRT>(si));
+
+			 planner->setProblemDefinition(pdef);
+
+			 auto t_cond(ompl::base::timedPlannerTerminationCondition(run_time));
+			 ompl::base::PlannerStatus solved = planner->solve(t_cond);
+
+
+			 if (pdef->hasSolution())
 			 {
-				 auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
-				 space->setBounds(0.0, (double)this->og_map->info.width);
-
-				 auto si(std::make_shared<ompl::base::SpaceInformation>(space));
-
-				 si->setStateValidityChecker(ompl::base::StateValidityCheckerPtr(new ps::ValidityChecker(si)));
-
-				 si->setup();
-
-				 ompl::base::ScopedState<ompl::base::RealVectorStateSpace> start(space);
-				 start->as<ompl::base::RealVectorStateSpace::StateType>()->values[0] = this->start_pose.position.x;
-				 start->as<ompl::base::RealVectorStateSpace::StateType>()->values[1] = this->start_pose.position.y;
-
-				 ompl::base::ScopedState<ompl::base::RealVectorStateSpace> goal(space);
-				 goal->as<ompl::base::RealVectorStateSpace::StateType>()->values[0] = this->goal_pose.position.x;
-				 goal->as<ompl::base::RealVectorStateSpace::StateType>()->values[1] = this->goal_pose.position.y;
-
-				 auto pdef(std::make_shared<ompl::base::ProblemDefinition>(si));
-				 pdef->setStartAndGoalStates(start, goal);
-
-				 auto planner(std::make_shared<ompl::geometric::RRT>(si));
-
-				 planner->setProblemDefinition(pdef);
-
-				 auto t_cond(ompl::base::timedPlannerTerminationCondition(run_time));
-				 ompl::base::PlannerStatus solved = planner->solve(t_cond);
-
-
-				 if (pdef->hasSolution())
-				 {
-
-					 ROS_INFO("solved");
-					 this->problem_solved = true;
-					 setSolutionPath(pdef);
-					 resetPoseSetteld();
-				 }
+				 this->problem_solved = true;
+				 setSolutionPath(pdef);
+				 resetPoseSetteld();
 			 }
 		 }
 
@@ -283,12 +264,14 @@ int main(int argc, char **argv) {
 
 	while (ros::ok())
 	{
-		if (!solver.problem_solved)
+		if (solver.start_pose_setteled && solver.goal_pose_setteled && solver.og_map_setteled && !solver.problem_solved)
 		{
 			std::clock_t t_start = std::clock();
-			solver.plan(2000.0);
+			solver.plan(200.0);
 			std::clock_t t_end = std::clock();
-			ROS_INFO("Runtime: %f", (t_end - t_start)/ CLOCKS_PER_SEC);
+
+			double runtime = ((double)t_end - (double)t_start) / (double)CLOCKS_PER_SEC;
+			ROS_INFO("Runtime: %f seconds", runtime);
 		}
 
 		ros::spinOnce();

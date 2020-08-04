@@ -9,7 +9,7 @@
 		type="path_planner_solver_node"
 		pkg="path_planner"
 		args="$(arg planner)"
-		output="log">
+		output="screen">
 		
 	<rosparam command="load" file="$(find path_planner)/params/main.yaml" />
 	</node>
