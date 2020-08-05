@@ -1,6 +1,5 @@
 <launch>
 	<arg name="map_file" value="$(dirname)/costmap/map.yaml"/>
-	<arg name="planner"/>
 
 	<node name="map_server" type="map_server" pkg="map_server" args="$(arg map_file)"/>
 	<node name="rviz" type="rviz" pkg="rviz" />
@@ -8,10 +7,11 @@
 		name="path_planner_solver_node"
 		type="path_planner_solver_node"
 		pkg="path_planner"
-		args="$(arg planner)"
 		output="screen">
 		
 	<rosparam command="load" file="$(find path_planner)/params/main.yaml" />
 	</node>
+	<node name="path_planner_cfg_node" type="path_planner_cfg_node" pkg="path_planner" />
+	<node name="rqt_reconfigure" type="rqt_reconfigure" pkg="rqt_reconfigure" />
 	<node name="static_tf0" pkg="tf" type="static_transform_publisher" args="2 0 0 0 0 0 /map /base_link 100"/>
 </launch>

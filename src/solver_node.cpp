@@ -21,6 +21,9 @@
 #include <ompl-1.5/ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ompl-1.5/ompl/geometric/PathGeometric.h>
 
+#include "path_planner/PlannerTypeConfig.h"
+#include "path_planner/PlannerType.h"
+
 #include <ros/duration.h>
 #include <ros/init.h>
 #include <ros/node_handle.h>
@@ -36,6 +39,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "dynamic_reconfigure/Config.h"
 
 namespace ps
 {
@@ -77,10 +82,9 @@ namespace ps
 	{
 
 	public:
-		ProblemSolver(const plannerType type, const ros::Publisher *pub)
+		ProblemSolver(const ros::Publisher *pub)
 		{
 			publisher = pub;
-			planner_type = type;
 		}
 
 		void plan(const double run_time)
@@ -107,24 +111,28 @@ namespace ps
 			 auto pdef(std::make_shared<ompl::base::ProblemDefinition>(si));
 			 pdef->setStartAndGoalStates(start, goal);
 
-			 auto planner(std::make_unique<ompl::geometric::RRT>(si));
-//			 auto planner(std::make_unique<ompl::geometric::RRTConnect>(si));
-//			 auto planner(std::make_unique<ompl::geometric::PRM>(si));
-
-			 planner->setProblemDefinition(pdef);
-
-			 auto t_cond(ompl::base::timedPlannerTerminationCondition(run_time));
-			 ompl::base::PlannerStatus solved = planner->solve(t_cond);
-
-
-			 if (pdef->hasSolution())
-			 {
-				 planner->printSettings(std::cout);
-				 this->problem_solved = true;
-				 setSolutionPath(pdef);
-				 resetPoseSetteld();
-			 }
+			 switch (this->planner_type) {
+				case ps::plannerType::RRT:
+				{
+					auto planner_rrt(std::make_unique<ompl::geometric::RRT>(si));
+					solve(planner_rrt, pdef, run_time);
+					break;
+				}
+				case ps::plannerType::RRTConnect:
+				{
+					auto planner_rrtc(std::make_unique<ompl::geometric::RRTConnect>(si));
+					solve(planner_rrtc, pdef, run_time);
+					break;
+				}
+				case ps::plannerType::PRM:
+				{
+					auto planner_prm(std::make_unique<ompl::geometric::PRM>(si));
+					solve(planner_prm, pdef, run_time);
+					break;
+				}
+			}
 		 }
+
 
 		void publish(const std::vector<ompl::base::RealVectorStateSpace::StateType *> path)
 		{
@@ -166,6 +174,7 @@ namespace ps
 		void startPoseSetupCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr&);
 		void goalPoseSetupCallback(const geometry_msgs::PoseStampedConstPtr&);
 		void mapSetupCallback(const nav_msgs::OccupancyGridConstPtr&);
+		void plannerTypeSetupCallback(const dynamic_reconfigure::ConfigConstPtr&);
 
 		bool problem_solved = false;
 		bool og_map_setteled = false;
@@ -179,7 +188,23 @@ namespace ps
 			this->goal_pose_setteled = false;
 		}
 
+		template<class T>
+		void solve(T &planner, std::shared_ptr<ompl::base::ProblemDefinition> pdef, const double run_time)
+		{
+			planner->setProblemDefinition(pdef);
 
+			 auto t_cond(ompl::base::timedPlannerTerminationCondition(run_time));
+			 ompl::base::PlannerStatus solved = planner->solve(t_cond);
+
+
+			 if (pdef->hasSolution())
+			 {
+				 planner->printSettings(std::cout);
+				 this->problem_solved = true;
+				 setSolutionPath(pdef);
+				 resetPoseSetteld();
+			 }
+		}
 
 		nav_msgs::OccupancyGridConstPtr og_map;
 
@@ -226,63 +251,52 @@ namespace ps
 			ROS_INFO("map set");
 		}
 	}
-} // namespace ps
 
-void pickUpPlannerType(int input_arg, ps::plannerType *planner_type)
-{
-	switch (input_arg)
+
+	void ProblemSolver::plannerTypeSetupCallback(const dynamic_reconfigure::ConfigConstPtr& type)
 	{
-		case 1:
-			*planner_type = ps::RRT;
-			break;
-		case 2:
-			*planner_type = ps::RRTConnect;
-			break;
-		case 3:
-			*planner_type = ps::PRM;
-			break;
-		default:
-			*planner_type = ps::RRT;
-			break;
+		switch (type->ints.at(0).value) {
+			case 1:
+				this->planner_type = ps::plannerType::RRT;
+				break;
+			case 2:
+				this->planner_type = ps::plannerType::RRTConnect;
+				break;
+			case 3:
+				this->planner_type = ps::plannerType::PRM;
+				break;
+		}
+		ROS_INFO("planner type set");
 	}
-}
+} // namespace ps
 
 int main(int argc, char **argv) {
 
-	if (!argc)
-	{
-		ROS_ERROR("Invaild path planner type argument!");
-		ros::shutdown();
-	}
 	ros::init(argc,  argv, "path_planner_solver_node");
 	ros::NodeHandle nh;
 
-
-	ps::plannerType planner_type;
-
-	std::string arg = argv[1];
-	int input_arg = stoi(arg);
-
-	pickUpPlannerType(input_arg, &planner_type);
-
 	ros::Publisher path_pub = nh.advertise<nav_msgs::Path>("/solver_path", 1000);
 
-	ps::ProblemSolver solver(planner_type, &path_pub);
+	ps::ProblemSolver solver(&path_pub);
 
 	ros::Subscriber initial_pose_sub = nh.subscribe("/map", 2, &ps::ProblemSolver::mapSetupCallback, &solver);
 	ros::Subscriber start_sub = nh.subscribe("/initialpose", 1, &ps::ProblemSolver::startPoseSetupCallback, &solver);
 	ros::Subscriber goal_sub = nh.subscribe("/move_base_simple/goal", 1, &ps::ProblemSolver::goalPoseSetupCallback, &solver);
+	ros::Subscriber planner_type_sub = nh.subscribe("/path_planner_cfg_node/parameter_updates", 1, &ps::ProblemSolver::plannerTypeSetupCallback, &solver);
 
 	ros::Rate loop_rate(10);
 
 	double runtime;
+	std::clock_t t_start;
+	std::clock_t t_end;
+
 	while (ros::ok())
 	{
 		if (solver.start_pose_setteled && solver.goal_pose_setteled && solver.og_map_setteled && !solver.problem_solved)
 		{
-			std::clock_t t_start = std::clock();
+			t_start = std::clock();
 			solver.plan(200.0);
-			std::clock_t t_end = std::clock();
+			t_end = std::clock();
 
 			runtime = ((double)t_end - (double)t_start) / (double)CLOCKS_PER_SEC;
 			ROS_INFO("Runtime: %f seconds", runtime);

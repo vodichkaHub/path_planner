@@ -6,7 +6,7 @@
  
 ## Usage
  1. Run:
- ```roslaunch /{your catkin workspace dir}/src/path_planner/run.launch planner:=1```
+ ```roslaunch /{your catkin workspace dir}/src/path_planner/run.launch```
  
  Where planner is: *{RRT=1, RRTConnect=2, PRM=3}*.
  

@@ -12,16 +12,12 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   nav_msgs
   geometry_msgs
+  message_generation
 )
 
-find_package(
-    ompl
-)
-
-find_package(
-	costmap_2d
-)
-
+find_package(ompl)
+find_package(costmap_2d)
+find_package(dynamic_reconfigure)
 
 ## System dependencies are found with CMake's conventions
  find_package(Boost REQUIRED COMPONENTS system)
@@ -57,9 +53,10 @@ find_package(
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-# )
+ add_message_files(
+   FILES
+   PlannerType.msg
+ )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -76,11 +73,11 @@ find_package(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-#   geometry_msgs
-# )
+ generate_messages(
+   DEPENDENCIES
+   std_msgs
+   geometry_msgs
+ )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -97,10 +94,9 @@ find_package(
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
+ generate_dynamic_reconfigure_options(
+   cfg/PlannerType.cfg
+ )
 
 ###################################
 ## catkin specific configuration ##
@@ -115,7 +111,8 @@ find_package(
 catkin_package(
   INCLUDE_DIRS
   	include
-#  	${catkin_INCLUDE_DIRS}
+#   ${CATKIN_DEVEL_PREFIX}/include/${PROJECT_NAME}
+  	${catkin_INCLUDE_DIRS}
 #  	${system_lib_INCLUDE_DIRS}
   LIBRARIES path_planner
   CATKIN_DEPENDS
@@ -125,6 +122,7 @@ catkin_package(
     geometry_msgs
 #   nav_core
     nav_msgs
+    message_runtime
 #  DEPENDS system_lib
 )
 
@@ -139,12 +137,13 @@ include_directories(
 #	${OMPL_INCLUDE_DIRS}
   	${catkin_INCLUDE_DIRS}
   	${costmap_2d_INCLUDE_DIRS}
+  	${dynamic_reconfigure_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
-#   src/setup_node.cpp
-   src/solver_node.cpp
+#	src/dyn_cfg_server.cpp
+   	src/solver_node.cpp
 )
 
 ## Rename C++ executable without prefix
@@ -162,12 +161,16 @@ target_link_libraries(${PROJECT_NAME}
 	${catkin_LIBRARIES}
 	${OMPL_LIBRARIES}
 	${costmap_2d_LIBRARIES}
+	${dynamic_reconfigure_LIBRARIES}
 )
 
 add_executable(${PROJECT_NAME}_solver_node src/solver_node.cpp)
 target_link_libraries(${PROJECT_NAME}_solver_node ${catkin_LIBRARIES} ${OMPL_LIBRARIES} ${costmap_2d_LIBRARIES})
 add_dependencies(${PROJECT_NAME}_solver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+add_executable(${PROJECT_NAME}_cfg_node src/dyn_cfg_server.cpp)
+target_link_libraries(${PROJECT_NAME}_cfg_node ${catkin_LIBRARIES} ${dynamic_reconfigure_LIBRARIES})
+add_dependencies(${PROJECT_NAME}_cfg_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
 #############
