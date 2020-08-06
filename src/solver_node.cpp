@@ -13,13 +13,12 @@
 #include <ompl-1.5/ompl/base/ProblemDefinition.h>
 #include <ompl-1.5/ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl-1.5/ompl/base/ScopedState.h>
-#include <ompl-1.5/ompl/base/SpaceInformation.h>
 #include <ompl-1.5/ompl/base/State.h>
 #include <ompl-1.5/ompl/base/StateValidityChecker.h>
 #include <ompl-1.5/ompl/geometric/planners/prm/PRM.h>
 #include <ompl-1.5/ompl/geometric/planners/rrt/RRT.h>
 #include <ompl-1.5/ompl/geometric/planners/rrt/RRTConnect.h>
-#include <ompl-1.5/ompl/geometric/PathGeometric.h>
+#include <ompl-1.5/ompl/geometric/planners/PlannerIncludes.h>
 
 #include "path_planner/PlannerTypeConfig.h"
 #include "path_planner/PlannerType.h"
