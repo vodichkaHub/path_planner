@@ -132,6 +132,17 @@ namespace ps
 			}
 		 }
 
+		void startPoseSetupCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr&);
+		void goalPoseSetupCallback(const geometry_msgs::PoseStampedConstPtr&);
+		void mapSetupCallback(const nav_msgs::OccupancyGridConstPtr&);
+		void plannerTypeSetupCallback(const dynamic_reconfigure::ConfigConstPtr&);
+
+		bool problem_solved = false;
+		bool og_map_setteled = false;
+		bool start_pose_setteled = false;
+		bool goal_pose_setteled = false;
+
+	private:
 
 		void publish(const std::vector<ompl::base::RealVectorStateSpace::StateType *> path)
 		{
@@ -169,17 +180,6 @@ namespace ps
 //
 			this->publish(result);
 		}
-
-		void startPoseSetupCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr&);
-		void goalPoseSetupCallback(const geometry_msgs::PoseStampedConstPtr&);
-		void mapSetupCallback(const nav_msgs::OccupancyGridConstPtr&);
-		void plannerTypeSetupCallback(const dynamic_reconfigure::ConfigConstPtr&);
-
-		bool problem_solved = false;
-		bool og_map_setteled = false;
-		bool start_pose_setteled = false;
-		bool goal_pose_setteled = false;
-	private:
 
 		void resetPoseSetteld ()
 		{
